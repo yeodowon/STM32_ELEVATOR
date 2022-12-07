@@ -1,0 +1,67 @@
+16:53:18 **** Incremental Build of configuration Debug for project 07.ELEVATOR ****
+make -j4 all 
+arm-none-eabi-gcc "../Core/Src/UART0.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F411xE -c -I../Core/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -MMD -MP -MF"Core/Src/UART0.d" -MT"Core/Src/UART0.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/UART0.o"
+../Core/Src/UART0.c: In function 'HAL_UART_RxCpltCallback':
+../Core/Src/UART0.c:70:32: warning: passing argument 2 of 'HAL_UART_Receive_IT' discards 'volatile' qualifier from pointer target type [-Wdiscarded-qualifiers]
+   70 |   HAL_UART_Receive_IT(&huart2, &rx_data, 1);
+      |                                ^~~~~~~~
+In file included from ../Core/Inc/stm32f4xx_hal_conf.h:406,
+                 from ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:30,
+                 from ../Core/Inc/main.h:31,
+                 from ../Core/Src/UART0.c:8:
+../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h:726:75: note: expected 'uint8_t *' {aka 'unsigned char *'} but argument is of type 'volatile uint8_t *' {aka 'volatile unsigned char *'}
+  726 | HAL_StatusTypeDef HAL_UART_Receive_IT(UART_HandleTypeDef *huart, uint8_t *pData, uint16_t Size);
+      |                                                                  ~~~~~~~~~^~~~~
+../Core/Src/UART0.c:100:32: warning: passing argument 2 of 'HAL_UART_Receive_IT' discards 'volatile' qualifier from pointer target type [-Wdiscarded-qualifiers]
+  100 |   HAL_UART_Receive_IT(&huart1, &rx_data, 1);
+      |                                ^~~~~~~~
+In file included from ../Core/Inc/stm32f4xx_hal_conf.h:406,
+                 from ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:30,
+                 from ../Core/Inc/main.h:31,
+                 from ../Core/Src/UART0.c:8:
+../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h:726:75: note: expected 'uint8_t *' {aka 'unsigned char *'} but argument is of type 'volatile uint8_t *' {aka 'volatile unsigned char *'}
+  726 | HAL_StatusTypeDef HAL_UART_Receive_IT(UART_HandleTypeDef *huart, uint8_t *pData, uint16_t Size);
+      |                                                                  ~~~~~~~~~^~~~~
+../Core/Src/UART0.c: In function 'pc_command_processing':
+../Core/Src/UART0.c:140:6: warning: implicit declaration of function 'strncmp' [-Wimplicit-function-declaration]
+  140 |   if(strncmp((const char *)rx_buff[output_pointer], "1_floor_up", strlen("1_floor_up")) == 0)
+      |      ^~~~~~~
+../Core/Src/UART0.c:140:67: warning: implicit declaration of function 'strlen' [-Wimplicit-function-declaration]
+  140 |   if(strncmp((const char *)rx_buff[output_pointer], "1_floor_up", strlen("1_floor_up")) == 0)
+      |                                                                   ^~~~~~
+../Core/Src/UART0.c:140:67: warning: incompatible implicit declaration of built-in function 'strlen'
+../Core/Src/UART0.c:11:1: note: include '<string.h>' or provide a declaration of 'strlen'
+   10 | #include "STEPMOTOR.h"
+  +++ |+#include <string.h>
+   11 | 
+../Core/Src/UART0.c:164:4: warning: implicit declaration of function 'printf' [-Wimplicit-function-declaration]
+  164 |    printf("Update Clock!!!\n");
+      |    ^~~~~~
+../Core/Src/UART0.c:164:4: warning: incompatible implicit declaration of built-in function 'printf'
+../Core/Src/UART0.c:11:1: note: include '<stdio.h>' or provide a declaration of 'printf'
+   10 | #include "STEPMOTOR.h"
+  +++ |+#include <stdio.h>
+   11 | 
+../Core/Src/UART0.c:165:22: warning: passing argument 1 of 'set_rtc_data_time' discards 'volatile' qualifier from pointer target type [-Wdiscarded-qualifiers]
+  165 |    set_rtc_data_time(&rx_buff[output_pointer][6]);  //220830111500?´ ?“¤?–´?žˆ?Š” ì£¼ì†Œê°’ì„ ?„˜ê²? set_rtc_data_time ?•¨?ˆ˜ë¥? call
+      |                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+../Core/Src/UART0.c:25:37: note: expected 'char *' but argument is of type 'volatile unsigned char *'
+   25 | extern void set_rtc_data_time(char *data_time);
+      |                               ~~~~~~^~~~~~~~~
+arm-none-eabi-gcc -o "07.ELEVATOR.elf" @"objects.list"   -mcpu=cortex-m4 -T"C:\Users\kccistc\Desktop\kimjunghoon\07.ELEVATOR\STM32F411RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="07.ELEVATOR.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+Finished building target: 07.ELEVATOR.elf
+ 
+arm-none-eabi-size   07.ELEVATOR.elf 
+arm-none-eabi-objdump -h -S  07.ELEVATOR.elf  > "07.ELEVATOR.list"
+arm-none-eabi-objcopy  -O binary  07.ELEVATOR.elf  "07.ELEVATOR.bin"
+   text	   data	    bss	    dec	    hex	filename
+  38112	    140	   3828	  42080	   a460	07.ELEVATOR.elf
+Finished building: default.size.stdout
+ 
+Finished building: 07.ELEVATOR.bin
+ 
+Finished building: 07.ELEVATOR.list
+ 
+
+16:53:20 Build Finished. 0 errors, 8 warnings. (took 1s.796ms)
+

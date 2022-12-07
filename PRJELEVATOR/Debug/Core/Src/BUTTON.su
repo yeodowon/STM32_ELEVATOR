@@ -1,0 +1,7 @@
+../Core/Src/BUTTON.c:16:5:get_button1	32	static
+../Core/Src/BUTTON.c:37:5:get_button2	32	static
+../Core/Src/BUTTON.c:57:5:get_button3	32	static
+../Core/Src/BUTTON.c:77:5:get_button4	32	static
+../Core/Src/BUTTON.c:97:5:get_button_open	32	static
+../Core/Src/BUTTON.c:117:5:get_button_close	32	static
+../Core/Src/BUTTON.c:137:5:get_button_EXT	32	static

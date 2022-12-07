@@ -1,0 +1,3 @@
+../Core/Src/buzzer.c:92:7:noTone	8	static
+../Core/Src/buzzer.c:98:6:buzzer_main	16	static
+../Core/Src/buzzer.c:112:6:elevator_buzzer	16	static

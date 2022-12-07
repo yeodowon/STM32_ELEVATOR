@@ -1,0 +1,4 @@
+../Core/Src/INTERNAL_RTC.c:15:15:bin_2_dec	24	static
+../Core/Src/INTERNAL_RTC.c:25:15:dec_2_bin	24	static
+../Core/Src/INTERNAL_RTC.c:35:6:get_rtc_time	48	static
+../Core/Src/INTERNAL_RTC.c:65:6:set_rtc_data_time	40	static

@@ -1,0 +1,665 @@
+#include "main.h"	// for GPIO, HAL
+#include "BUTTON.h"
+#include "STEPMOTOR.h"
+
+// 층수에 대한 count
+// 1. 0층 : 0
+// 2. 1층 : 4096 * 1
+// 3. 2층 : 4096 * 3
+// 4. 3층 : 4096 * 5
+// 5. 4층 : 4096 * 7
+volatile int floor_count = STEPS_PER_REV * FLOOR1;	// 현재 엘레베이터의 층수 상태
+int floor = FLOOR1;									//	1층(FLOOR1), 2층(FLOOR2), 3층(FLOOR3), 4층(FLOOR4)
+int EXT_state = EXT_inactive;						// 엘레베이터 외부 상태 변수
+int INT_state = INT_inactive;						// 엘레베이터 내부 상태 변수
+int DOOR_state = DOOR_CLOSE;						// DOOR_state : DOOR_CLOSE(문닫힘), DOOR_OPEN(문열림)
+int motor_state = IDLE;								// motor_state : IDLE(정지), FORWARD(상승), BACKWARD(하강)
+
+extern uint8_t prev_button1_state;		// 1층 버튼 상태
+extern uint8_t prev_button2_state;		// 2층 버튼 상태
+extern uint8_t prev_button3_state;		// 3층 버튼 상태
+extern uint8_t prev_button4_state;		// 4층 버튼 상태
+
+extern uint8_t prev_button_open_state;	// 문열림 버튼 상태
+extern uint8_t prev_button_close_state;	// 문닫힘 버튼 상태
+
+extern uint8_t prev_button_EXT_state;	// 문닫힘 버튼 상태
+
+extern int VIP_on_off;						// VIP_on_off : VIP_ON(4층 활성화), VIP_OFF(4층 비활성화)
+
+extern void delay_us(unsigned long us);
+
+extern void elevator_led_inactive();
+extern void elevator_led_active();
+
+// servo_motor.c로 빼야함
+extern volatile int TIM11_10ms_door_counter;
+extern TIM_HandleTypeDef htim2;
+
+// buzzer.c로 빼야함
+#define BUZZER_OFF	0
+#define BUZZER_ON	1
+
+extern volatile int TIM11_10ms_buzzer_counter;
+extern TIM_HandleTypeDef htim3;
+extern void elevator_buzzer();
+int buzzer_state = BUZZER_OFF;
+
+// 1min : 60sec = 60,000,000usec
+// 1sec : 1000msec = 1,000,000usec
+// rpm : revolution per minute
+// 60,000,000 / 4096 / speed (1~13)
+
+void set_rpm(int rpm)		// rpm : 1 ~ 13 (motor spec)
+{
+	delay_us( 60000000/ STEPS_PER_REV / rpm );
+	// 최대 speed 기준 : delay_us(1126)
+}
+
+void stepmotor_drive(int direction)		// direction에 따른 steopmotor 움직임 -> IDLE(정지), FORWARD(상승), BACKWARD(하강)
+{
+	static int step = 0;
+	switch(step)
+	{
+		case 0 :
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
+			break;
+
+		case 1 :
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
+			break;
+
+		case 2 :
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
+			break;
+
+		case 3 :
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
+			break;
+
+		case 4 :
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
+			break;
+
+		case 5 :
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+			break;
+
+		case 6 :
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+			break;
+
+		case 7 :
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+			break;
+	}
+
+	if(direction == FORWARD)
+	{
+		step++;
+		step %= 8;
+	}
+	else if(direction == BACKWARD)
+	{
+		step--;
+		if(step < 0)
+			step = 7;
+	}
+}
+
+void elevator_activation()
+{
+	elevator_mode_select();
+	if(EXT_state == EXT_inactive && INT_state == INT_inactive)		// 엘레베이터 정지 상태
+	{
+		elevator_motor_inactive();
+		elevator_led_inactive();
+		elevator_door_inactive();
+		elevator_buzzer_on();
+	}
+	else if(EXT_state == EXT_active && INT_state == INT_inactive)
+	{
+		elevator_EXT_motor_active();
+		elevator_EXT_led_active();
+		elevator_door_inactive();
+		elevator_buzzer_on();
+	}
+	else if(INT_state == INT_active)	// 엘레베이터 동작 상태
+	{
+		if(DOOR_state == DOOR_CLOSE)
+		{
+			elevator_motor_active();
+			elevator_led_active();
+		}
+		else if(DOOR_state == DOOR_OPEN)
+			elevator_door_close_for_active();
+
+	}
+	else if(INT_state == INT_cancle)	// 엘레베이터 취소 상태
+	{
+		elevator_motor_cancle();
+		elevator_led_active();
+	}
+}
+
+void elevator_EXT_motor_active()
+{
+	switch(motor_state)
+	{
+		case FORWARD :
+			elevator_motor_up();
+		break;
+
+		case BACKWARD :
+			elevator_motor_down();
+		break;
+	}
+}
+
+void elevator_EXT_led_active()
+{
+
+}
+
+void buzzer_init()
+{
+	__HAL_TIM_SET_AUTORELOAD(&htim3, 16000000 / 392);
+	__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 16000000 / 392 / 2);  // Duty를 50%로 설정 한다.
+}
+
+void elevator_buzzer_on()
+{
+	if(buzzer_state == BUZZER_ON)
+	{
+		elevator_buzzer();
+		buzzer_state = BUZZER_OFF;
+	}
+
+}
+
+void elevator_door_inactive()
+{
+	switch(DOOR_state)
+	{
+		// 문이 닫혀있는 상태
+		case DOOR_CLOSE :
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 50);
+		break;
+		// 문이 열려있는 상태
+		case DOOR_OPEN :
+			elevator_door_open();
+		break;
+	}
+}
+
+void elevator_door_open()
+{
+	// 일단 문을 연다.
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 110);
+
+	// TIM11 --> 4sec후에 자동으로 DOOR_CLOSE로 바꾸어서 문을 닫는다.
+	if(TIM11_10ms_door_counter >= 400)
+	{
+		TIM11_10ms_door_counter = 0;
+		DOOR_state = DOOR_CLOSE;
+	}
+}
+
+void elevator_door_close_for_active()
+{
+	if(TIM11_10ms_door_counter >= 400)
+	{
+		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 50);
+		TIM11_10ms_door_counter = 0;
+		DOOR_state = DOOR_CLOSE;
+	}
+}
+
+// 버튼에 따른 엘레베이터 모드 선택 함수
+// 1. INT_state == INT_inactive --> 엘레베이터 정지 상태
+// [1] 문열림 버튼 : 문열림 + 문열림 시간 3초 증가
+// [2] 문닫힘 버튼 : 문닫힘
+// [3] 각 층 버튼 : 현재 위치 < 해당 층 위치 --> FORWARD / 현재 위치 > 해당 층 위치 : BACKWARD
+// [4] 포토 인터럽터0 활성화 -> 4번 버튼 활성화
+
+// 2. INT_state == INT_active --> 엘레베이터 동작 상태
+// [1] 취소 --> 가장 가까운 층으로 이동
+// [2] 엘레베이터 동작 중에는 문이 열리지도 닫히지도 않는다. (취소 상태에서도 마찬가지)
+void elevator_mode_select()
+{
+	if(INT_state == INT_inactive)		// 엘레베이터 정지 상태 --> 층수 조작, 문 열림 및 닫힘
+	{
+		if(VIP_on_off == VIP_ON)
+		{
+			if(get_button4(BTN4_GPIO_Port, BTN4_Pin, &prev_button4_state) == BUTTON_PRESS)
+			{
+				INT_state = INT_active;
+				floor = FLOOR4;
+				HAL_GPIO_WritePin(FLOOR4_LED_GPIO_Port, FLOOR4_LED_Pin , GPIO_PIN_SET);
+				HAL_GPIO_WritePin(GPIOB, FLOOR1_LED_Pin | FLOOR2_LED_Pin | FLOOR3_LED_Pin, GPIO_PIN_RESET);
+				if(floor_count < STEPS_PER_REV * floor)
+					motor_state = FORWARD;
+				else if(floor_count > STEPS_PER_REV * floor)
+					motor_state = BACKWARD;
+				else
+				{
+					INT_state = INT_inactive;
+					motor_state = IDLE;
+					HAL_GPIO_WritePin(GPIOB, FLOOR1_LED_Pin | FLOOR2_LED_Pin | FLOOR3_LED_Pin | FLOOR4_LED_Pin, GPIO_PIN_RESET);
+				}
+			}
+		}
+		if(get_button1(BTN1_GPIO_Port, BTN1_Pin, &prev_button1_state) == BUTTON_PRESS)
+		{
+			INT_state = INT_active;
+			floor = FLOOR1;
+			HAL_GPIO_WritePin(FLOOR1_LED_GPIO_Port, FLOOR1_LED_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOB, FLOOR2_LED_Pin | FLOOR3_LED_Pin | FLOOR4_LED_Pin, GPIO_PIN_RESET);
+			if(floor_count < STEPS_PER_REV * floor)
+				motor_state = FORWARD;
+			else if(floor_count > STEPS_PER_REV * floor)
+				motor_state = BACKWARD;
+			else
+			{
+				INT_state = INT_inactive;
+				motor_state = IDLE;
+				HAL_GPIO_WritePin(GPIOB, FLOOR1_LED_Pin | FLOOR2_LED_Pin | FLOOR3_LED_Pin | FLOOR4_LED_Pin, GPIO_PIN_RESET);
+			}
+		}
+		else if(get_button2(BTN2_GPIO_Port, BTN2_Pin, &prev_button2_state) == BUTTON_PRESS)
+		{
+			INT_state = INT_active;
+			floor = FLOOR2;
+			HAL_GPIO_WritePin(FLOOR2_LED_GPIO_Port, FLOOR2_LED_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOB, FLOOR1_LED_Pin | FLOOR3_LED_Pin | FLOOR4_LED_Pin, GPIO_PIN_RESET);
+			if(floor_count < STEPS_PER_REV * floor)
+				motor_state = FORWARD;
+			else if(floor_count > STEPS_PER_REV * floor)
+				motor_state = BACKWARD;
+			else
+			{
+				INT_state = INT_inactive;
+				motor_state = IDLE;
+				HAL_GPIO_WritePin(GPIOB, FLOOR1_LED_Pin | FLOOR2_LED_Pin | FLOOR3_LED_Pin | FLOOR4_LED_Pin, GPIO_PIN_RESET);
+			}
+		}
+		else if(get_button3(BTN3_GPIO_Port, BTN3_Pin, &prev_button3_state) == BUTTON_PRESS)
+		{
+			INT_state = INT_active;
+			floor = FLOOR3;
+			HAL_GPIO_WritePin(FLOOR3_LED_GPIO_Port, FLOOR3_LED_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOB, FLOOR1_LED_Pin | FLOOR2_LED_Pin | FLOOR4_LED_Pin, GPIO_PIN_RESET);
+			if(floor_count < STEPS_PER_REV * floor)
+				motor_state = FORWARD;
+			else if(floor_count > STEPS_PER_REV * floor)
+				motor_state = BACKWARD;
+			else
+			{
+				INT_state = INT_inactive;
+				motor_state = IDLE;
+				HAL_GPIO_WritePin(GPIOB, FLOOR1_LED_Pin | FLOOR2_LED_Pin | FLOOR3_LED_Pin | FLOOR4_LED_Pin, GPIO_PIN_RESET);
+			}
+
+		}
+		else if(get_button_open(BTN_OPEN_GPIO_Port, BTN_OPEN_Pin, &prev_button_open_state) == BUTTON_PRESS)
+		{
+			DOOR_state = DOOR_OPEN;
+			// DOOR_OPEN 버튼을 누를 때마다 문이 3초 열리는 것을 갱신한다.
+			TIM11_10ms_door_counter = 0;
+		}
+		else if(get_button_close(BTN_CLOSE_GPIO_Port, BTN_CLOSE_Pin, &prev_button_close_state) == BUTTON_PRESS)
+		{
+			DOOR_state = DOOR_CLOSE;
+		}
+	}
+	else if(INT_state == INT_active)	// 엘레베이터 동작 상태 --> 취소만 가능
+	{
+		switch(floor)
+		{
+			case FLOOR1 :
+				if(get_button1(BTN1_GPIO_Port, BTN1_Pin, &prev_button1_state) == BUTTON_PRESS)
+				{
+					INT_state = INT_cancle;
+					HAL_GPIO_WritePin(FLOOR1_LED_GPIO_Port, FLOOR1_LED_Pin, GPIO_PIN_RESET);
+					if(DOOR_state == DOOR_CLOSE)
+					{
+						if(floor_count < STEPS_PER_REV * floor)
+							motor_state = FORWARD;
+						else if (floor_count > STEPS_PER_REV * floor)
+							motor_state = BACKWARD;
+					}
+					else if(DOOR_state == DOOR_OPEN)
+					{
+						INT_state = INT_inactive;
+						motor_state = IDLE;
+					}
+				}
+			break;
+
+			case FLOOR2 :
+				if(get_button2(BTN2_GPIO_Port, BTN2_Pin, &prev_button2_state) == BUTTON_PRESS)
+				{
+					INT_state = INT_cancle;
+					HAL_GPIO_WritePin(FLOOR2_LED_GPIO_Port, FLOOR2_LED_Pin, GPIO_PIN_RESET);
+					if(DOOR_state == DOOR_CLOSE)
+					{
+						if(floor_count < STEPS_PER_REV * floor)
+							motor_state = FORWARD;
+						else if (floor_count > STEPS_PER_REV * floor)
+							motor_state = BACKWARD;
+					}
+					else if(DOOR_state == DOOR_OPEN)
+					{
+						INT_state = INT_inactive;
+						motor_state = IDLE;
+					}
+				}
+			break;
+
+			case FLOOR3 :
+				if(get_button3(BTN3_GPIO_Port, BTN3_Pin, &prev_button3_state) == BUTTON_PRESS)
+				{
+					INT_state = INT_cancle;
+					HAL_GPIO_WritePin(FLOOR3_LED_GPIO_Port, FLOOR3_LED_Pin, GPIO_PIN_RESET);
+					if(DOOR_state == DOOR_CLOSE)
+					{
+						if(floor_count < STEPS_PER_REV * floor)
+							motor_state = FORWARD;
+						else if (floor_count > STEPS_PER_REV * floor)
+							motor_state = BACKWARD;
+					}
+					else if(DOOR_state == DOOR_OPEN)
+					{
+						INT_state = INT_inactive;
+						motor_state = IDLE;
+					}
+				}
+			break;
+
+			case FLOOR4 :
+				if(get_button4(BTN4_GPIO_Port, BTN4_Pin, &prev_button4_state) == BUTTON_PRESS)
+				{
+					INT_state = INT_cancle;
+					HAL_GPIO_WritePin(FLOOR4_LED_GPIO_Port, FLOOR4_LED_Pin, GPIO_PIN_RESET);
+					if(DOOR_state == DOOR_CLOSE)
+					{
+						if(floor_count < STEPS_PER_REV * floor)
+							motor_state = FORWARD;
+						else if (floor_count > STEPS_PER_REV * floor)
+							motor_state = BACKWARD;
+					}
+					else if(DOOR_state == DOOR_OPEN)
+					{
+						INT_state = INT_inactive;
+						motor_state = IDLE;
+					}
+				}
+			break;
+		}
+	}
+
+	if(EXT_state == EXT_inactive)
+	{
+		if(get_button_EXT(EXT_BTN_GPIO_Port, EXT_BTN_Pin, &prev_button_EXT_state) == BUTTON_PRESS)
+		{
+			EXT_state = EXT_active;
+			HAL_GPIO_WritePin(EXT_LED_GPIO_Port, EXT_LED_Pin, GPIO_PIN_SET);
+			if(DOOR_state == DOOR_CLOSE)
+			{
+				if(floor_count < STEPS_PER_REV * floor)
+					motor_state = FORWARD;
+				else if (floor_count > STEPS_PER_REV * floor)
+					motor_state = BACKWARD;
+			}
+		}
+	}
+	else if(EXT_state == EXT_active)
+	{
+		if(get_button_EXT(EXT_BTN_GPIO_Port, EXT_BTN_Pin, &prev_button_EXT_state) == BUTTON_PRESS)
+		{
+			EXT_state = EXT_inactive;
+			HAL_GPIO_WritePin(EXT_LED_GPIO_Port, EXT_LED_Pin, GPIO_PIN_RESET);
+		}
+	}
+}
+
+void elevator_motor_inactive()
+{
+	motor_state = IDLE;
+}
+
+void elevator_motor_active()
+{
+	switch(motor_state)
+	{
+		case FORWARD :
+			elevator_motor_up();
+		break;
+
+		case BACKWARD :
+			elevator_motor_down();
+		break;
+	}
+}
+
+// 현재 위치 < 해당 층수 --> 해당 층수까지 엘레베이터를 상승시킨다.
+void elevator_motor_up()
+{
+	if(floor_count < STEPS_PER_REV * floor)
+	{
+		stepmotor_drive(FORWARD);
+		set_rpm(13);
+		floor_count++;
+	}
+	else if(floor_count == STEPS_PER_REV * floor)
+	{
+		INT_state = INT_inactive;
+		motor_state = IDLE;
+		TIM11_10ms_door_counter = 0;
+		DOOR_state = DOOR_OPEN;
+		VIP_on_off = VIP_OFF;
+		buzzer_state = BUZZER_ON;
+		TIM11_10ms_buzzer_counter = 0;
+	}
+}
+
+// 현재 위치 > 해당 층수 --> 해당 층수까지 엘레베이터를 하강시킨다.
+void elevator_motor_down()
+{
+	if(floor_count > STEPS_PER_REV * floor)
+	{
+		stepmotor_drive(BACKWARD);
+		set_rpm(13);
+		floor_count--;
+	}
+	else if(floor_count == STEPS_PER_REV * floor)
+	{
+		INT_state = INT_inactive;
+		motor_state = IDLE;
+		TIM11_10ms_door_counter = 0;
+		DOOR_state = DOOR_OPEN;
+		VIP_on_off = VIP_OFF;
+		buzzer_state = BUZZER_ON;
+		TIM11_10ms_buzzer_counter = 0;
+	}
+}
+
+void elevator_motor_cancle()
+{
+	switch(motor_state)
+	{
+		case FORWARD :
+			elevator_motor_cancle_up();
+		break;
+
+		case BACKWARD :
+			elevator_motor_cancle_down();
+		break;
+	}
+}
+
+// 엘레베이터 상승 중 취소시킨 상태에 관한 함수
+void elevator_motor_cancle_up()
+{
+	elevator_motor_cancle_up_to_floor2();
+	elevator_motor_cancle_up_to_floor3();
+	elevator_motor_cancle_up_to_floor4();
+}
+
+// 엘레베이터 상승 중 1층과 2층 사이에서 취소 --> 2층까지 상승시킨다.
+void elevator_motor_cancle_up_to_floor2()
+{
+	if((floor_count > STEPS_PER_REV * FLOOR1) && (floor_count < STEPS_PER_REV * FLOOR2))
+	{
+		stepmotor_drive(FORWARD);
+		set_rpm(13);
+		floor_count++;
+	}
+	else if(floor_count == STEPS_PER_REV * FLOOR2)
+	{
+		INT_state = INT_inactive;
+		motor_state = IDLE;
+		TIM11_10ms_door_counter = 0;
+		DOOR_state = DOOR_OPEN;
+		VIP_on_off = VIP_OFF;
+		buzzer_state = BUZZER_ON;
+		TIM11_10ms_buzzer_counter = 0;
+	}
+}
+
+// 엘레베이터 상승 중 2층과 3층 사이에서 취소 --> 3층까지 상승시킨다.
+void elevator_motor_cancle_up_to_floor3()
+{
+	if((floor_count > STEPS_PER_REV * FLOOR2) && (floor_count < STEPS_PER_REV * FLOOR3))
+	{
+		stepmotor_drive(FORWARD);
+		set_rpm(13);
+		floor_count++;
+	}
+	else if(floor_count == STEPS_PER_REV * FLOOR3)
+	{
+		INT_state = INT_inactive;
+		motor_state = IDLE;
+		TIM11_10ms_door_counter = 0;
+		DOOR_state = DOOR_OPEN;
+		VIP_on_off = VIP_OFF;
+		buzzer_state = BUZZER_ON;
+		TIM11_10ms_buzzer_counter = 0;
+	}
+}
+
+// 엘레베이터 상승 중 3층과 4층 사이에서 취소 --> 4층까지 상승시킨다.
+void elevator_motor_cancle_up_to_floor4()
+{
+	if((floor_count > STEPS_PER_REV * FLOOR3) && (floor_count < STEPS_PER_REV * FLOOR4))
+	{
+		stepmotor_drive(FORWARD);
+		set_rpm(13);
+		floor_count++;
+	}
+	else if(floor_count == STEPS_PER_REV * FLOOR4)
+	{
+		INT_state = INT_inactive;
+		motor_state = IDLE;
+		TIM11_10ms_door_counter = 0;
+		DOOR_state = DOOR_OPEN;
+		VIP_on_off = VIP_OFF;
+		buzzer_state = BUZZER_ON;
+		TIM11_10ms_buzzer_counter = 0;
+	}
+}
+
+// 엘레베이터 하강 중 취소 시킨 상태에 관한 함수
+void elevator_motor_cancle_down()
+{
+	elevator_motor_cancle_down_to_floor1();
+	elevator_motor_cancle_down_to_floor2();
+	elevator_motor_cancle_down_to_floor3();
+}
+
+// 엘레베이터 하강 중 1층과 2층 사이에서 취소 --> 1층까지 하강시킨다.
+void elevator_motor_cancle_down_to_floor1()
+{
+	if((floor_count > STEPS_PER_REV * FLOOR1) && (floor_count < STEPS_PER_REV * FLOOR2))
+	{
+		stepmotor_drive(BACKWARD);
+		set_rpm(13);
+		floor_count--;
+	}
+	else if(floor_count == STEPS_PER_REV * FLOOR1)
+	{
+		INT_state = INT_inactive;
+		motor_state = IDLE;
+		TIM11_10ms_door_counter = 0;
+		DOOR_state = DOOR_OPEN;
+		VIP_on_off = VIP_OFF;
+		buzzer_state = BUZZER_ON;
+		TIM11_10ms_buzzer_counter = 0;
+	}
+}
+
+// 엘레베이터 하강 중 2층과 3층 사이에서 취소 --> 2층까지 하강시킨다.
+void elevator_motor_cancle_down_to_floor2()
+{
+	if((floor_count > STEPS_PER_REV * FLOOR2) && (floor_count < STEPS_PER_REV * FLOOR3))
+	{
+		stepmotor_drive(BACKWARD);
+		set_rpm(13);
+		floor_count--;
+	}
+	else if(floor_count == STEPS_PER_REV * FLOOR2)
+	{
+		INT_state = INT_inactive;
+		motor_state = IDLE;
+		TIM11_10ms_door_counter = 0;
+		DOOR_state = DOOR_OPEN;
+		VIP_on_off = VIP_OFF;
+		buzzer_state = BUZZER_ON;
+		TIM11_10ms_buzzer_counter = 0;
+	}
+}
+
+// 엘레베이터 하강 중 3층과 4층 사이에서 취소 --> 3층까지 하강시킨다.
+void elevator_motor_cancle_down_to_floor3()
+{
+	if((floor_count > STEPS_PER_REV * FLOOR3) && (floor_count < STEPS_PER_REV * FLOOR4))
+	{
+		stepmotor_drive(BACKWARD);
+		set_rpm(13);
+		floor_count--;
+	}
+	else if(floor_count == STEPS_PER_REV * FLOOR3)
+	{
+		INT_state = INT_inactive;
+		motor_state = IDLE;
+		TIM11_10ms_door_counter = 0;
+		DOOR_state = DOOR_OPEN;
+		VIP_on_off = VIP_OFF;
+		buzzer_state = BUZZER_ON;
+		TIM11_10ms_buzzer_counter = 0;
+	}
+}

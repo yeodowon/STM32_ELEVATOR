@@ -1,0 +1,12 @@
+../Core/Src/LED.c:14:6:elevator_led_inactive	8	static
+../Core/Src/LED.c:39:6:elevator_led_active	8	static
+../Core/Src/LED.c:54:6:elevator_led_up	8	static
+../Core/Src/LED.c:61:6:elevator_led_up_to_floor2	8	static
+../Core/Src/LED.c:86:6:elevator_led_up_to_floor3	8	static
+../Core/Src/LED.c:111:6:elevator_led_up_to_floor4	8	static
+../Core/Src/LED.c:137:6:elevator_led_down	8	static
+../Core/Src/LED.c:144:6:elevator_led_down_to_floor1	8	static
+../Core/Src/LED.c:169:6:elevator_led_down_to_floor2	8	static
+../Core/Src/LED.c:194:6:elevator_led_down_to_floor3	8	static
+../Core/Src/LED.c:219:6:led_all_on	8	static
+../Core/Src/LED.c:224:6:led_all_off	8	static

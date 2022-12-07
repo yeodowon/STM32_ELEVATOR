@@ -1,0 +1,12 @@
+#include "main.h"	// for HAL GPIO handling
+
+#define BUTTON_PRESS		0		// 버튼을 누르면 0 (Pull Up R -> Active Low)
+#define BUTTON_RELEASE		1		// 버튼을 떼면 1
+
+int get_button1(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, uint8_t *prev_button_state);
+int get_button2(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, uint8_t *prev_button_state);
+int get_button3(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, uint8_t *prev_button_state);
+int get_button4(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, uint8_t *prev_button_state);
+int get_button_open(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, uint8_t *prev_button_state);
+int get_button_close(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, uint8_t *prev_button_state);
+int get_button_EXT(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, uint8_t *prev_button_state);
