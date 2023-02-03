@@ -29,7 +29,7 @@ https://user-images.githubusercontent.com/113006249/215732961-44e6cc29-6ae6-46bc
 
 3. 4층에서 1층 하강 시 2층 누름
 
-ttps://user-images.githubusercontent.com/113006249/215733488-da989204-bbd1-4b7d-a3a1-499fccaa8582.mp4
+https://user-images.githubusercontent.com/113006249/216603173-9c3e39a7-fde2-461b-b4d8-d97b847264b8.mp4
 
 4. 1층(엘리베이터 외부 호출)
 
